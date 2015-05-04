@@ -27,4 +27,4 @@ override_dh_install:
 	cp -a view1090 debian/dump1090-mutability/usr/bin/view1090-mutability
 
 %:
-	dh --with systemd $@
+	dh $@ --with systemd
