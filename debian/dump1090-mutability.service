@@ -8,7 +8,10 @@ Environment=START_DUMP1090=no HTTP_PORT=0 RAW_OUTPUT_PORT=0 SBS_OUTPUT_PORT=0 BE
 EnvironmentFile=/etc/default/dump1090-mutability
 User=dump1090
 Nice=-5
-
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=yes
+PermissionsStartOnly=true
 ExecStartPre=-/bin/mkdir $JSON_DIR
 ExecStartPre=/bin/chmod 0755 $JSON_DIR
 ExecStartPre=/bin/chown dump1090 $JSON_DIR
