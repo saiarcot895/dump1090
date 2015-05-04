@@ -1,0 +1,42 @@
+[Unit]
+Description=dump1090-mutability daemon
+Requires=network.target
+After=remote-fs.target network.target
+
+[Service]
+Environment=START_DUMP1090=no HTTP_PORT=0 RAW_OUTPUT_PORT=0 SBS_OUTPUT_PORT=0 BEAST_INPUT_PORT=0 BEAST_OUTPUT_PORT=0 FATSV_OUTPUT_PORT=0 NET_BUFFER=0 JSON_INTERVAL=0 MAX_RANGE=300 JSON_DIR=/run/dump1090-mutability PPM=0 LAT= LON= NET_HEARTBEAT= NET_OUTPUT_SIZE= NET_OUTPUT_INTERVAL= STATS_INTERVAL=
+EnvironmentFile=/etc/default/dump1090-mutability
+User=dump1090
+Nice=-5
+
+ExecStartPre=-/bin/mkdir $JSON_DIR
+ExecStartPre=/bin/chmod 0755 $JSON_DIR
+ExecStartPre=/bin/chown dump1090 $JSON_DIR
+
+ExecStart=/usr/bin/dump1090-mutability \
+	--net \
+	--net-http-port $HTTP_PORT \
+	--net-ri-port $RAW_INPUT_PORT \
+	--net-ro-port $RAW_OUTPUT_PORT \
+	--net-bi-port $BEAST_INPUT_PORT \
+	--net-bo-port $BEAST_OUTPUT_PORT \
+	--net-sbs-port $SBS_OUTPUT_PORT \
+	--net-fatsv-port $FATSV_OUTPUT_PORT \
+	--ppm $PPM \
+	--max-range $MAX_RANGE \
+	--lat ${LAT} \
+	--lon ${LON} \
+	--net-buffer 3 \
+	--oversample \
+	--phase-enhance \
+	--net-heartbeat ${NET_HEARTBEAT} \
+	--net-ro-size ${NET_OUTPUT_SIZE} \
+	--net-ro-interval ${NET_OUTPUT_INTERVAL} \
+	--stats-every ${STATS_INTERVAL} \
+	--write-json ${JSON_DIR} \
+	--write-json-every $JSON_INTERVAL \
+	--quiet \
+	$EXTRA_ARGS
+
+[Install]
+WantedBy=multi-user.target
