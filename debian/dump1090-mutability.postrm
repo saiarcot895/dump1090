@@ -18,6 +18,10 @@ set -e
 # for details, see http://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
+# systemd: reload the daemon
+if [ -x /bin/systemctl ]; then
+    systemctl daemon-reload >/dev/null 2>&1 || true
+fi
 
 case "$1" in
     purge)
@@ -25,6 +29,12 @@ case "$1" in
         rm -f /etc/cron.d/dump1090-mutability
         rm -rf /var/cache/dump1090-mutability
     ;;
+
+    upgrade)
+        if [ -x /bin/systemctl ]; then
+            systemctl restart dump1090-mutability.service >/dev/null 2>&1 || true
+        fi
+	;;
 
     remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
     ;;

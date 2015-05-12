@@ -129,6 +129,12 @@ case "$1" in
                 service lighttpd restart || echo "Warning: lighttpd failed to restart." >&2
             fi
         fi
+
+		# For systemd, enable and start the dump1090-mutability unit
+		if [ -x /bin/systemctl ]; then
+		    systemctl enable dump1090-mutability.service >/dev/null 2>&1 || true
+		    systemctl start dump1090-mutability.service >/dev/null 2>&1 || true
+		fi
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
