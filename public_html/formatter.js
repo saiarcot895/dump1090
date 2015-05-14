@@ -168,5 +168,5 @@ function format_distance_long(dist) {
 
 // p as a LatLng
 function format_latlng(p) {
-	return p.lat().toFixed(3) + DEGREES + "," + NBSP + p.lng().toFixed(3) + DEGREES;
+	return p.lat.toFixed(3) + DEGREES + "," + NBSP + p.lng.toFixed(3) + DEGREES;
 }

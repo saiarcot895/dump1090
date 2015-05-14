@@ -34,8 +34,9 @@ function PlaneObject(icao) {
         // Display info
         this.visible = true;
         this.marker = null;
-        this.icon = { type: 'generic',
-                      fillOpacity: 0.9 };
+        this.icon = { type: MarkerIcons.generic,
+			          fillOpacity: 0.9,
+		              fillColor: "none" };
 
         // request metadata
         this.registration = null;
@@ -65,7 +66,7 @@ PlaneObject.prototype.updateTrack = function(estimate_time) {
         if (this.track_linesegs.length == 0) {
                 // Brand new track
                 //console.log(this.icao + " new track");
-                var newseg = { track : new google.maps.MVCArray([here,here]),
+                var newseg = { track : [here,here],
                                line : null,
                                head_update : this.last_position_time,
                                tail_update : this.last_position_time,
@@ -78,7 +79,7 @@ PlaneObject.prototype.updateTrack = function(estimate_time) {
         }
         
         var lastseg = this.track_linesegs[this.track_linesegs.length - 1];
-        var lastpos = lastseg.track.getAt(lastseg.track.getLength() - 1);
+        var lastpos = lastseg.track[lastseg.track.length - 1];
         var elapsed = (this.last_position_time - lastseg.head_update);
         
         var new_data = (here !== lastpos);
@@ -92,7 +93,7 @@ PlaneObject.prototype.updateTrack = function(estimate_time) {
                 if (!lastseg.estimated) {
                         // >5s gap in data, create a new estimated segment
                         //console.log(this.icao + " switching to estimated");
-                        this.track_linesegs.push({ track : new google.maps.MVCArray([lastpos, here]),
+                        this.track_linesegs.push({ track : [lastpos, here],
                                                    line : null,
                                                    head_update : this.last_position_time,
                                                    estimated : true });
@@ -111,7 +112,7 @@ PlaneObject.prototype.updateTrack = function(estimate_time) {
         if (lastseg.estimated) {
                 // We are back to good data.
                 //console.log(this.icao + " switching to good track");
-                this.track_linesegs.push({ track : new google.maps.MVCArray([lastpos, here]),
+                this.track_linesegs.push({ track : [lastpos, here],
                                            line : null,
                                            head_update : this.last_position_time,
                                            tail_update : this.last_position_time,
@@ -126,9 +127,11 @@ PlaneObject.prototype.updateTrack = function(estimate_time) {
                 //console.log(this.icao + " ground state changed");
                 // Create a new segment as the ground state changed.
                 // assume the state changed halfway between the two points
-                var midpoint = google.maps.geometry.spherical.interpolate(lastpos,here,0.5);
+				var midpointLat = lastpos.lat + here.lat / 2;
+				var midpointLon = lastpos.lon + here.lon / 2;
+                var midpoint = [midpointLat, midpointLon];
                 lastseg.track.push(midpoint);
-                this.track_linesegs.push({ track : new google.maps.MVCArray([midpoint,here,here]),
+                this.track_linesegs.push({ track : [midpoint,here,here],
                                            line : null,
                                            head_update : this.last_position_time,
                                            tail_update : this.last_position_time,
@@ -149,7 +152,7 @@ PlaneObject.prototype.updateTrack = function(estimate_time) {
                 this.history_size ++;
         } else {
                 // replace the last point with the current position
-                lastseg.track.setAt(lastseg.track.getLength()-1, here);
+                lastseg.track[lastseg.track.length-1] = here;
         }
         lastseg.head_update = this.last_position_time;
         return true;
@@ -160,7 +163,7 @@ PlaneObject.prototype.clearLines = function() {
         for (var i = 0; i < this.track_linesegs.length; ++i) {
                 var seg = this.track_linesegs[i];
                 if (seg.line !== null) {
-                        seg.line.setMap(null);
+                        Map.removeLayer(seg.line);
                         seg.line = null;
                 }
         }
@@ -168,16 +171,16 @@ PlaneObject.prototype.clearLines = function() {
 
 PlaneObject.prototype.getMarkerIconType = function() {
         var lookup = {
-                'A1' : 'light',
-                'A2' : 'medium',
-                'A3' : 'medium',
-                'A5' : 'heavy',
-                'A7' : 'rotorcraft'
+                'A1' : MarkerIcons.light,
+                'A2' : MarkerIcons.medium,
+                'A3' : MarkerIcons.medium,
+                'A5' : MarkerIcons.heavy,
+                'A7' : MarkerIcons.rotorcraft
 
         };
 
         if (this.category === null || !(this.category in lookup))
-                return 'generic'
+                return MarkerIcons.generic
         else
                 return lookup[this.category];
 }
@@ -250,20 +253,20 @@ PlaneObject.prototype.updateIcon = function() {
         var col = this.getMarkerColor();
         var type = this.getMarkerIconType();
         var weight = this.selected ? 2 : 1;
-        var rotation = (this.track === null ? 0 : this.track);
         
-        if (col === this.icon.fillColor && weight === this.icon.strokeWeight && rotation === this.icon.rotation && type == this.icon.type)
+        if (col === this.icon.fillColor && weight === this.icon.strokeWeight && type == this.icon.type)
                 return false;  // no changes
         
-        this.icon.fillColor = col;                
+        this.icon.fillColor = col;
         this.icon.strokeWeight = weight;
-        this.icon.rotation = rotation;
         this.icon.type = type;
-        this.icon.path = MarkerIcons[type].path;
-        this.icon.anchor = MarkerIcons[type].anchor;
-        this.icon.scale = MarkerIcons[type].scale;
         if (this.marker)
-                this.marker.setIcon(this.icon);
+                this.marker.setIcon(new L.DivIcon({
+					iconSize: [32, 32],
+					iconAnchor: [16, 16],
+					className: "",
+					html: "<svg viewBox=\"0 0 64 64\"><path d=\"" + this.icon.type.path + "\" style=\"fill: " + this.icon.fillColor + "; stroke-width:" + this.icon.strokeWeight + "; stroke: black\" /></svg>"
+								}));
         
         return true;
 };
@@ -284,11 +287,11 @@ PlaneObject.prototype.updateData = function(receiver_timestamp, data) {
         if (typeof data.track !== "undefined")
                 this.track	= data.track;
         if (typeof data.lat !== "undefined") {
-                this.position   = new google.maps.LatLng(data.lat, data.lon);
+                this.position   = new L.LatLng(data.lat, data.lon);
                 this.last_position_time = receiver_timestamp - data.seen_pos;
 
                 if (SitePosition !== null) {
-                        this.sitedist = google.maps.geometry.spherical.computeDistanceBetween (SitePosition, this.position);
+                        this.sitedist = SitePosition.distanceTo(this.position);
                 }
         }
         if (typeof data.flight !== "undefined")
@@ -328,8 +331,8 @@ PlaneObject.prototype.updateTick = function(receiver_timestamp, last_timestamp) 
 
 PlaneObject.prototype.clearMarker = function() {
 	if (this.marker) {
-		this.marker.setMap(null);
-                google.maps.event.clearListeners(this.marker, 'click');
+		Map.removeLayer(this.marker);
+        this.marker.off('click');
 		this.marker = null;
 	}
 };
@@ -343,26 +346,30 @@ PlaneObject.prototype.updateMarker = function(moved) {
         
 	if (this.marker) {
                 if (moved)
-			this.marker.setPosition(this.position);
+			this.marker.setLatLng(this.position);
                 this.updateIcon();
 	} else {
                 this.updateIcon();
-		this.marker = new google.maps.Marker({
-			position: this.position,
-			map: GoogleMap,
-			icon: this.icon,
-			visible: true
-		});
+		this.marker = new L.RotatedMarker(this.position, {
+			icon: new L.DivIcon({
+				iconSize: [32, 32],
+				iconAnchor: [16, 16],
+				className: "",
+				html: "<svg viewBox=\"0 0 64 64\"><path d=\"" + this.icon.type.path + "\" style=\"fill: " + this.icon.fillColor + "; stroke-width:" + this.icon.strokeWeight + "; stroke: black\" /></svg>"
+			}),
+			visible: true,
+			angle: (this.track === null ? 0 : this.track)
+		}).addTo(Map);
                 
 		// Trap clicks for this marker.
-		google.maps.event.addListener(this.marker, 'click', selectPlaneByHex.bind(undefined,this.icao,false));
-		google.maps.event.addListener(this.marker, 'dblclick', selectPlaneByHex.bind(undefined,this.icao,true));
+		this.marker.on('click', selectPlaneByHex.bind(undefined,this.icao,false));
+		this.marker.on('dblclick', selectPlaneByHex.bind(undefined,this.icao,true));
 	}
         
 	// Setting the marker title
         var title = (this.flight === null || this.flight.length == 0) ? this.icao : (this.flight+' ('+this.icao+')');
         if (title !== this.marker.title)
-	        this.marker.setTitle(title);
+	        this.marker.title = title;
 };
 
 // Update our planes tail line,
@@ -379,30 +386,18 @@ PlaneObject.prototype.updateLines = function() {
                         // }
                         
                         if (seg.estimated) {
-                                var lineSymbol = {
-                                        path: 'M 0,-1 0,1',
-                                        strokeOpacity : 1,
-                                        strokeColor : '#804040',
-                                        strokeWeight : 2,
-                                        scale: 2
-                                };
-                                
-                                seg.line = new google.maps.Polyline({
-                                        path: seg.track,
-					strokeOpacity: 0,
-                                        icons: [{
-                                                icon: lineSymbol,
-                                                offset: '0',
-                                                repeat: '10px' }],
-                                        map : GoogleMap });
+                                seg.line = new L.Polyline(seg.track, {
+                                        strokeOpacity: 1,
+                                        color: '#804040',
+                                        weight: 2,
+										dashArray: "5, 5"
+                                        }).addTo(Map);
                         } else {
-                                seg.line = new google.maps.Polyline({
-                                        path: seg.track,
+                                seg.line = new L.Polyline(seg.track, {
 					strokeOpacity: 1.0,
-					strokeColor: (seg.ground ? '#408040' : '#000000'),
-					strokeWeight: 3,
-					map: GoogleMap });
-                        }
+					color: (seg.ground ? '#408040' : '#000000'),
+					weight: 3 }).addTo(Map);
+						}
                 }
         }
 };

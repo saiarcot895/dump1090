@@ -2,7 +2,7 @@
 "use strict";
 
 // Define our global variables
-var GoogleMap     = null;
+var Map     = null;
 var Planes        = {};
 var PlanesOrdered = [];
 var SelectedPlane = null;
@@ -306,7 +306,7 @@ function initialize_map() {
 
         // Set SitePosition, initialize sorting
         if (SiteShow && (typeof SiteLat !==  'undefined') && (typeof SiteLon !==  'undefined')) {
-	        SitePosition = new google.maps.LatLng(SiteLat, SiteLon);
+	        SitePosition = new L.LatLng(SiteLat, SiteLon);
                 sortByDistance();
         } else {
 	        SitePosition = null;
@@ -315,15 +315,30 @@ function initialize_map() {
                 sortByAltitude();
         }
 
-	// Make a list of all the available map IDs
-	var mapTypeIds = [];
-	for(var type in google.maps.MapTypeId) {
-		mapTypeIds.push(google.maps.MapTypeId[type]);
-	}
-	// Push OSM on to the end
-	mapTypeIds.push("OSM");
-	mapTypeIds.push("dark_map");
+	// Make a list of all the available maps
+	var mapboxStreets = L.tileLayer('https://{s}.tiles.mapbox.com/v4/mapbox.streets/{z}/{x}/{y}.png?access_token=pk.eyJ1Ijoic2FpYXJjb3Q4OTUiLCJhIjoiVVBpNXVnTSJ9.ZPVYljBUG1Sbz-ZsCaPVEw', {
+			attribution: 'Map data &copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="http://mapbox.com">Mapbox</a>',
+			maxZoom: 18,
+	});
 
+	var mapboxLight = L.tileLayer('https://{s}.tiles.mapbox.com/v4/mapbox.light/{z}/{x}/{y}.png?access_token=pk.eyJ1Ijoic2FpYXJjb3Q4OTUiLCJhIjoiVVBpNXVnTSJ9.ZPVYljBUG1Sbz-ZsCaPVEw', {
+			attribution: 'Map data &copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="http://mapbox.com">Mapbox</a>',
+			maxZoom: 18,
+	});
+
+	var mapboxDark = L.tileLayer('https://{s}.tiles.mapbox.com/v4/mapbox.dark/{z}/{x}/{y}.png?access_token=pk.eyJ1Ijoic2FpYXJjb3Q4OTUiLCJhIjoiVVBpNXVnTSJ9.ZPVYljBUG1Sbz-ZsCaPVEw', {
+			attribution: 'Map data &copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="http://mapbox.com">Mapbox</a>',
+			maxZoom: 18,
+	});
+	
+	// Make a list of all the available map IDs
+	var baseMaps = {
+		"Street": mapboxStreets,
+		"Light": mapboxLight,
+		"Dark": mapboxDark
+	};
+
+	/*
 	// Styled Map to outline airports and highways
 	var styles = [
 		{
@@ -389,72 +404,53 @@ function initialize_map() {
 
 	// Add our styled map
 	var styledMap = new google.maps.StyledMapType(styles, {name: "Dark Map"});
-
-	// Define the Google Map
+	*/
+	
+	// Define the Map
 	var mapOptions = {
-		center: new google.maps.LatLng(CenterLat, CenterLon),
+		center: L.latLng(CenterLat, CenterLon),
 		zoom: ZoomLvl,
-		mapTypeId: google.maps.MapTypeId.ROADMAP,
-		mapTypeControl: true,
-		streetViewControl: false,
-		mapTypeControlOptions: {
-			mapTypeIds: mapTypeIds,
-			position: google.maps.ControlPosition.TOP_LEFT,
-			style: google.maps.MapTypeControlStyle.DROPDOWN_MENU
-		}
+		layers: [mapboxStreets]
 	};
 
-	GoogleMap = new google.maps.Map(document.getElementById("map_canvas"), mapOptions);
-
-	//Define OSM map type pointing at the OpenStreetMap tile server
-	GoogleMap.mapTypes.set("OSM", new google.maps.ImageMapType({
-		getTileUrl: function(coord, zoom) {
-			return "http://tile.openstreetmap.org/" + zoom + "/" + coord.x + "/" + coord.y + ".png";
-		},
-		tileSize: new google.maps.Size(256, 256),
-		name: "OpenStreetMap",
-		maxZoom: 18
-	}));
-
-	GoogleMap.mapTypes.set("dark_map", styledMap);
+	Map = L.map("map_canvas", mapOptions);
+	L.control.layers(baseMaps).addTo(Map);
 	
 	// Listeners for newly created Map
-        google.maps.event.addListener(GoogleMap, 'center_changed', function() {
-                localStorage['CenterLat'] = GoogleMap.getCenter().lat();
-                localStorage['CenterLon'] = GoogleMap.getCenter().lng();
+        Map.on('dragend', function(e) {
+                localStorage['CenterLat'] = Map.getCenter().lat;
+                localStorage['CenterLon'] = Map.getCenter().lng;
                 if (FollowSelected) {
                         // On manual navigation, disable follow
                         var selected = Planes[SelectedPlane];
-                        if (Math.abs(GoogleMap.getCenter().lat() - selected.position.lat()) > 0.0001 &&
-                            Math.abs(GoogleMap.getCenter().lng() - selected.position.lng()) > 0.0001) {
+                        if (Math.abs(Map.getCenter().lat - selected.position.lat()) > 0.0001 &&
+                            Math.abs(Map.getCenter().lng - selected.position.lng()) > 0.0001) {
                                 FollowSelected = false;
                                 refreshSelected();
                         }
                 }
         });
     
-        google.maps.event.addListener(GoogleMap, 'zoom_changed', function() {
-                localStorage['ZoomLvl']  = GoogleMap.getZoom();
+        Map.on('zoomend', function() {
+                localStorage['ZoomLvl']  = Map.getZoom();
         });
 	
 	// Add home marker if requested
 	if (SitePosition) {
-	    var markerImage = new google.maps.MarkerImage(
-	        'http://maps.google.com/mapfiles/kml/pal4/icon57.png',
-            new google.maps.Size(32, 32),   // Image size
-            new google.maps.Point(0, 0),    // Origin point of image
-            new google.maps.Point(16, 16)); // Position where marker should point 
-	    var marker = new google.maps.Marker({
-          position: SitePosition,
-          map: GoogleMap,
-          icon: markerImage,
+		var markerIcon = new L.Icon({
+                iconSize: [25, 25],
+                iconAnchor: [12, 12],
+                iconUrl: "genericPlane.svg"
+		});
+	    var marker = new L.Marker(SitePosition, {
+          icon: markerIcon,
           title: SiteName,
-          zIndex: -99999
-        });
+          zIndexOffset: -99999
+        }).addTo(Map);
         
         if (SiteCircles) {
             for (var i=0;i<SiteCirclesDistances.length;i++) {
-              drawCircle(marker, SiteCirclesDistances[i]); // in meters
+              drawCircle(SiteCirclesDistances[i]); // in meters
             }
         }
 	}
@@ -606,7 +602,7 @@ function refreshSelected() {
                 $('#selected_follow').removeClass('hidden');
                 if (FollowSelected) {
                         $('#selected_follow').css('font-weight', 'bold');
-                        GoogleMap.panTo(selected.position);
+                        Map.panTo(selected.position);
                 } else {
                         $('#selected_follow').css('font-weight', 'normal');
                 }
@@ -781,8 +777,8 @@ function selectPlaneByHex(hex,autofollow) {
 
         if (SelectedPlane !== null && autofollow) {
                 FollowSelected = true;
-                if (GoogleMap.getZoom() < 8)
-                        GoogleMap.setZoom(8);
+                if (Map.getZoom() < 8)
+                        Map.setZoom(8);
         } else {
                 FollowSelected = false;
         } 
@@ -792,8 +788,8 @@ function selectPlaneByHex(hex,autofollow) {
 
 function toggleFollowSelected() {
         FollowSelected = !FollowSelected;
-        if (FollowSelected && GoogleMap.getZoom() < 8)
-                GoogleMap.setZoom(8);
+        if (FollowSelected && Map.getZoom() < 8)
+                Map.setZoom(8);
         refreshSelected();
 }
 
@@ -804,13 +800,13 @@ function resetMap() {
         localStorage['ZoomLvl']   = ZoomLvl = DefaultZoomLvl;
 
         // Set and refresh
-	GoogleMap.setZoom(ZoomLvl);
-	GoogleMap.setCenter(new google.maps.LatLng(CenterLat, CenterLon));
+	Map.setZoom(ZoomLvl);
+	Map.setCenter(L.LatLng(CenterLat, CenterLon));
 	
 	selectPlaneByHex(null,false);
 }
 
-function drawCircle(marker, distance) {
+function drawCircle(distance) {
     if (typeof distance === 'undefined') {
         return false;
         
@@ -825,12 +821,9 @@ function drawCircle(marker, distance) {
     }
     
     // Add circle overlay and bind to marker
-    var circle = new google.maps.Circle({
-      map: GoogleMap,
-      radius: distance, // In meters
+    new L.Circle(SitePosition, distance, {
       fillOpacity: 0.0,
-      strokeWeight: 1,
-      strokeOpacity: 0.3
-    });
-    circle.bindTo('center', marker, 'position');
+      weight: 1,
+      opacity: 0.3
+    }).addTo(Map);
 }
