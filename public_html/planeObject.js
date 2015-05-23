@@ -253,21 +253,23 @@ PlaneObject.prototype.updateIcon = function() {
         var col = this.getMarkerColor();
         var type = this.getMarkerIconType();
         var weight = this.selected ? 2 : 1;
+		var angle = (this.track === null ? 0 : this.track);
         
-        if (col === this.icon.fillColor && weight === this.icon.strokeWeight && type == this.icon.type)
+        if (col === this.icon.fillColor && weight === this.icon.strokeWeight && type == this.icon.type && angle === this.marker.options.angle)
                 return false;  // no changes
         
         this.icon.fillColor = col;
         this.icon.strokeWeight = weight;
         this.icon.type = type;
-        if (this.marker)
+        if (this.marker) {
                 this.marker.setIcon(new L.DivIcon({
 					iconSize: [32, 32],
 					iconAnchor: [16, 16],
 					className: "",
 					html: "<svg viewBox=\"0 0 64 64\"><path d=\"" + this.icon.type.path + "\" style=\"fill: " + this.icon.fillColor + "; stroke-width:" + this.icon.strokeWeight + "; stroke: black\" /></svg>"
 								}));
-        
+				this.marker.options.angle = angle;
+		}
         return true;
 };
 
