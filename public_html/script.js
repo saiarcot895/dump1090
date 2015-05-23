@@ -39,6 +39,9 @@ var MessageRate = 0;
 
 var NBSP='\u00a0';
 
+var AccessToken = 'pk.eyJ1Ijoic2FpYXJjb3Q4OTUiLCJhIjoiVVBpNXVnTSJ9.ZPVYljBUG1Sbz-ZsCaPVEw';
+var Attribution = 'Map data &copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="http://mapbox.com">Mapbox</a>';
+
 function processReceiverUpdate(data) {
 	// Loop through all the planes in the data packet
         var now = data.now;
@@ -316,18 +319,18 @@ function initialize_map() {
         }
 
 	// Make a list of all the available maps
-	var mapboxStreets = L.tileLayer('https://{s}.tiles.mapbox.com/v4/mapbox.streets/{z}/{x}/{y}.png?access_token=pk.eyJ1Ijoic2FpYXJjb3Q4OTUiLCJhIjoiVVBpNXVnTSJ9.ZPVYljBUG1Sbz-ZsCaPVEw', {
-			attribution: 'Map data &copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="http://mapbox.com">Mapbox</a>',
+	var mapboxStreets = L.tileLayer('https://{s}.tiles.mapbox.com/v4/mapbox.streets/{z}/{x}/{y}.png?access_token=' + AccessToken, {
+			attribution: Attribution,
 			maxZoom: 18,
 	});
 
-	var mapboxLight = L.tileLayer('https://{s}.tiles.mapbox.com/v4/mapbox.light/{z}/{x}/{y}.png?access_token=pk.eyJ1Ijoic2FpYXJjb3Q4OTUiLCJhIjoiVVBpNXVnTSJ9.ZPVYljBUG1Sbz-ZsCaPVEw', {
-			attribution: 'Map data &copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="http://mapbox.com">Mapbox</a>',
+	var mapboxLight = L.tileLayer('https://{s}.tiles.mapbox.com/v4/mapbox.light/{z}/{x}/{y}.png?access_token=' + AccessToken, {
+			attribution: Attribution,
 			maxZoom: 18,
 	});
 
-	var mapboxDark = L.tileLayer('https://{s}.tiles.mapbox.com/v4/mapbox.dark/{z}/{x}/{y}.png?access_token=pk.eyJ1Ijoic2FpYXJjb3Q4OTUiLCJhIjoiVVBpNXVnTSJ9.ZPVYljBUG1Sbz-ZsCaPVEw', {
-			attribution: 'Map data &copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="http://mapbox.com">Mapbox</a>',
+	var mapboxDark = L.tileLayer('https://{s}.tiles.mapbox.com/v4/mapbox.dark/{z}/{x}/{y}.png?access_token=' + AccessToken, {
+			attribution: Attribution,
 			maxZoom: 18,
 	});
 	
