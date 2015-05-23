@@ -361,7 +361,11 @@ PlaneObject.prototype.updateMarker = function(moved) {
 			}),
 			visible: true,
 			angle: (this.track === null ? 0 : this.track)
-		}).addTo(Map);
+		});
+
+		if (this.position) {
+			this.marker.addTo(Map);
+		}
                 
 		// Trap clicks for this marker.
 		this.marker.on('click', selectPlaneByHex.bind(undefined,this.icao,false));
