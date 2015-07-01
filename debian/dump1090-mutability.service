@@ -12,6 +12,9 @@ PrivateTmp=true
 ProtectSystem=full
 ProtectHome=yes
 
+RuntimeDirectory=dump1090-mutability
+RuntimeDirectoryMode=755
+
 ExecStart=/usr/bin/dump1090-mutability \
 	--net \
 	--net-http-port $HTTP_PORT \
