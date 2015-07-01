@@ -59,6 +59,11 @@
 //
 //
 
+/* A timestamp that indicates the data is synthetic, created from a
+ * multilateration result
+ */
+#define MAGIC_MLAT_TIMESTAMP 0xFF004D4C4154ULL
+
 //=========================================================================
 //
 // Given the Downlink Format (DF) of the message, return the message length in bits.
@@ -328,6 +333,7 @@ int scoreModesMessage(unsigned char *msg, int validbits)
     int msgtype, msgbits, crc, iid;
     uint32_t addr;
     struct errorinfo *ei;
+    static unsigned char all_zeros[14] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
     if (validbits < 56)
         return -2;
@@ -336,6 +342,9 @@ int scoreModesMessage(unsigned char *msg, int validbits)
     msgbits = modesMessageLenByType(msgtype);
 
     if (validbits < msgbits)
+        return -2;
+
+    if (!memcmp(all_zeros, msg, msgbits/8))
         return -2;
 
     crc = modesChecksum(msg, msgbits);
@@ -563,6 +572,9 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg)
 
     mm->bFlags = 0;
 
+    if (mm->remote && mm->timestampMsg == MAGIC_MLAT_TIMESTAMP)
+        mm->bFlags |= MODES_ACFLAGS_FROM_MLAT;
+
     // AA (Address announced)
     if (mm->msgtype == 11 || mm->msgtype == 17 || mm->msgtype == 18) {
         mm->addr  = (msg[1] << 16) | (msg[2] << 8) | (msg[3]);
@@ -648,7 +660,7 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg)
             mm->bFlags |= MODES_ACFLAGS_AOG;
     }
 
-    if (!mm->correctedbits && (mm->msgtype == 17 || mm->msgtype == 18 || (mm->msgtype != 11 || mm->iid == 0))) {
+    if (!mm->correctedbits && (mm->msgtype == 17 || mm->msgtype == 18 || (mm->msgtype == 11 && mm->iid == 0))) {
         // No CRC errors seen, and either it was an DF17/18 extended squitter
         // or a DF11 acquisition squitter with II = 0. We probably have the right address.
 
@@ -1095,8 +1107,12 @@ void displayModesMessage(struct modesMessage *mm) {
     if (mm->score)
         printf("Score: %d\n", mm->score);
 
-    if (mm->timestampMsg)
-        printf("Time: %.2fus (phase: %d)\n", mm->timestampMsg / 12.0, (unsigned int) (360 * (mm->timestampMsg % 6) / 6));
+    if (mm->timestampMsg) {
+        if (mm->timestampMsg == MAGIC_MLAT_TIMESTAMP)
+            printf("This is a synthetic MLAT message.\n");
+        else
+            printf("Time: %.2fus (phase: %d)\n", mm->timestampMsg / 12.0, (unsigned int) (360 * (mm->timestampMsg % 6) / 6));
+    }
 
     if (mm->msgtype == 0) { // DF 0
         printf("DF 0: Short Air-Air Surveillance.\n");
@@ -1221,18 +1237,17 @@ void useModesMessage(struct modesMessage *mm) {
     // Otherwise, apply a sanity-check filter and only
     // forward messages when we have seen two of them.
 
-    // TODO: buffer the original message and forward it when we
-    // see a second message?
-
     if (Modes.net) {
-        if (Modes.net_verbatim || a->messages > 1) {
+        if (Modes.net_verbatim || mm->msgtype == 32) {
+            // Unconditionally send
+            modesQueueOutput(mm);
+        } else if (a->messages > 1) {
             // If this is the second message, and we
             // squelched the first message, then re-emit the
             // first message now.
             if (!Modes.net_verbatim && a->messages == 2) {
                 modesQueueOutput(&a->first_message);
             }
-
             modesQueueOutput(mm);
         }
     }

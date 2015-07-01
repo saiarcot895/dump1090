@@ -13,6 +13,7 @@ function PlaneObject(icao) {
         this.speed     = null;
         this.track     = null;
         this.position  = null;
+        this.position_from_mlat = false
         this.sitedist  = null;
 
 	// Data packet numbers
@@ -295,6 +296,16 @@ PlaneObject.prototype.updateData = function(receiver_timestamp, data) {
                 if (SitePosition !== null) {
                         this.sitedist = SitePosition.distanceTo(this.position);
                 }
+
+                this.position_from_mlat = false;
+                if (typeof data.mlat !== "undefined") {
+                        for (var i = 0; i < data.mlat.length; ++i) {
+                                if (data.mlat[i] === "lat" || data.mlat[i] == "lon") {
+                                        this.position_from_mlat = true;
+                                        break;
+                                }
+                        }
+                }
         }
         if (typeof data.flight !== "undefined")
 		this.flight	= data.flight;
@@ -321,7 +332,7 @@ PlaneObject.prototype.updateTick = function(receiver_timestamp, last_timestamp) 
 	} else {
                 this.visible = true;
                 if (this.position !== null) {
-			if (this.updateTrack(receiver_timestamp - last_timestamp + 5)) {
+			if (this.updateTrack(receiver_timestamp - last_timestamp + (this.position_from_mlat ? 30 : 5))) {
                                 this.updateLines();
                                 this.updateMarker(true);
                         } else { 

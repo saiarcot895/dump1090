@@ -82,7 +82,8 @@
     #include "winstubs.h" //Put everything Windows specific in here
 #endif
 
-#include <rtl-sdr.h>
+// Avoid a dependency on rtl-sdr except where it's really needed.
+typedef struct rtlsdr_dev rtlsdr_dev_t;
 
 // ============================= #defines ===============================
 
@@ -159,6 +160,7 @@
 #define MODES_ACFLAGS_LATLON_REL_OK  (1<<15) // Indicates it's OK to do a relative CPR
 #define MODES_ACFLAGS_REL_CPR_USED   (1<<16) // Lat/lon derived from relative CPR
 #define MODES_ACFLAGS_CATEGORY_VALID (1<<17) // Aircraft category is known
+#define MODES_ACFLAGS_FROM_MLAT      (1<<18) // Data was derived from multilateration
 
 #define MODES_ACFLAGS_LLEITHER_VALID (MODES_ACFLAGS_LLEVEN_VALID | MODES_ACFLAGS_LLODD_VALID)
 #define MODES_ACFLAGS_LLBOTH_VALID   (MODES_ACFLAGS_LLEVEN_VALID | MODES_ACFLAGS_LLODD_VALID)
@@ -205,41 +207,23 @@
 
 #define MODES_NOTUSED(V) ((void) V)
 
-// adjust for zero offset of amplitude values
-#define TRUE_AMPLITUDE(x) ((x) + 365)
-#define MAX_AMPLITUDE TRUE_AMPLITUDE(65535)
-#define MAX_POWER (1.0 * MAX_AMPLITUDE * MAX_AMPLITUDE)
+#define MAX_AMPLITUDE 65535.0
+#define MAX_POWER (MAX_AMPLITUDE * MAX_AMPLITUDE)
 
 // Include subheaders after all the #defines are in place
 
 #include "util.h"
 #include "anet.h"
+#include "net_io.h"
 #include "crc.h"
 #include "demod_2000.h"
 #include "demod_2400.h"
 #include "stats.h"
 #include "cpr.h"
 #include "icao_filter.h"
+#include "convert.h"
 
 //======================== structure declarations =========================
-
-// Structure used to describe a networking client
-struct client {
-    struct client*  next;                // Pointer to next client
-    int    fd;                           // File descriptor
-    int    service;                      // TCP port the client is connected to
-    int    buflen;                       // Amount of data on buffer
-    char   buf[MODES_CLIENT_BUF_SIZE+1]; // Read buffer
-};
-
-// Common writer state for all output sockets of one type
-struct net_writer {
-    int socket;          // listening socket FD, used to identify the owning service
-    int connections;     // number of active clients
-    void *data;          // shared write buffer, sized MODES_OUT_BUF_SIZE
-    int dataUsed;        // number of bytes of write buffer currently used
-    uint64_t lastWrite;  // time of last write to clients
-};
 
 // Structure representing one magnitude buffer
 struct mag_buf {
@@ -248,6 +232,7 @@ struct mag_buf {
     uint64_t        sampleTimestamp; // Clock timestamp of the start of this block, 12MHz clock
     struct timespec sysTimestamp;    // Estimated system time at start of block
     uint32_t        dropped;         // Number of dropped samples preceding this buffer
+    double          total_power;     // Sum of per-sample input power (in the range [0.0,1.0] per sample), or 0 if not measured
 };
 
 // Program global state
@@ -263,11 +248,19 @@ struct {                             // Internal state
     struct timespec reader_cpu_accumulator;               // CPU time used by the reader thread, copied out and reset by the main thread under the mutex
 
     unsigned        trailing_samples;                     // extra trailing samples in magnitude buffers
+    double          sample_rate;                          // actual sample rate in use (in hz)
 
     int             fd;              // --ifile option file descriptor
+    input_format_t  input_format;    // --iformat option
     uint16_t       *maglut;          // I/Q -> Magnitude lookup table
     uint16_t       *log10lut;        // Magnitude -> log10 lookup table
     int             exit;            // Exit from the main loop when true
+
+    // Sample conversion
+    int            dc_filter;        // should we apply a DC filter?
+    int            measure_noise;    // should we measure noise power?
+    iq_convert_fn  converter_function;
+    struct converter_state *converter_state;
 
     // RTLSDR
     char *        dev_name;
@@ -279,10 +272,8 @@ struct {                             // Internal state
 
     // Networking
     char           aneterr[ANET_ERR_LEN];
+    struct net_service *services;    // Active services
     struct client *clients;          // Our clients
-    int            ris;              // Raw input listening socket
-    int            bis;              // Beast input listening socket
-    int            https;            // HTTP listening socket
 
     struct net_writer raw_out;       // Raw output
     struct net_writer beast_out;     // Beast-format output
@@ -324,6 +315,7 @@ struct {                             // Internal state
     int   interactive_rows;          // Interactive mode: max number of rows
     uint64_t interactive_display_ttl;// Interactive mode: TTL display
     uint64_t stats;                  // Interval (millis) between stats dumps,
+    int   stats_range_histo;         // Collect/show a range histogram?
     int   onlyaddr;                  // Print only ICAO addresses
     int   metric;                    // Use metric units
     int   mlat;                      // Use Beast ascii format for raw data output, i.e. @...; iso *...;
@@ -331,6 +323,7 @@ struct {                             // Internal state
     char *json_dir;                  // Path to json base directory, or NULL not to write json.
     uint64_t json_interval;          // Interval between rewriting the json aircraft file, in milliseconds; also the advertised map refresh interval
     int   json_location_accuracy;    // Accuracy of location metadata: 0=none, 1=approx, 2=exact
+    int   throttle;                  // When reading from a file, throttle file playback to realtime?
 
     int   json_aircraft_history_next;
     struct {
@@ -437,21 +430,6 @@ void useModesMessage    (struct modesMessage *mm);
 // Functions exported from interactive.c
 //
 void  interactiveShowData(void);
-
-//
-// Functions exported from net_io.c
-//
-void modesInitNet         (void);
-void modesQueueOutput     (struct modesMessage *mm);
-void modesReadFromClient(struct client *c, char *sep, int(*handler)(struct client *, char *));
-void modesNetPeriodicWork (void);
-int   decodeBinMessage   (struct client *c, char *p);
-
-void writeJsonToFile(const char *file, char * (*generator) (const char*,int*));
-char *generateAircraftJson(const char *url_path, int *len);
-char *generateReceiverJson(const char *url_path, int *len);
-char *generateStatsJson(const char *url_path, int *len);
-char *generateHistoryJson(const char *url_path, int *len);
 
 #ifdef __cplusplus
 }

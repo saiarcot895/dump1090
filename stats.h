@@ -73,11 +73,11 @@ struct stats {
 
     // noise floor:
     double noise_power_sum;
-    uint32_t noise_power_count;
+    uint64_t noise_power_count;
 
     // mean signal power:
     double signal_power_sum;
-    uint32_t signal_power_count;
+    uint64_t signal_power_count;
 
     // peak signal power seen
     double peak_signal_power;
@@ -114,11 +114,19 @@ struct stats {
     unsigned int cpr_local_receiver_relative;
     unsigned int cpr_filtered;
 
+    // number of altitude messages ignored because
+    // we had a recent DF17/18 altitude
+    unsigned int suppressed_altitude_messages;
+
     // aircraft:
     // total "new" aircraft (i.e. not seen in the last 30 or 300s)
     unsigned int unique_aircraft;
     // we saw only a single message
     unsigned int single_message_aircraft;
+
+    // range histogram
+#define RANGE_BUCKET_COUNT 76
+    uint32_t range_histogram[RANGE_BUCKET_COUNT];
 };    
 
 void add_stats(const struct stats *st1, const struct stats *st2, struct stats *target);
