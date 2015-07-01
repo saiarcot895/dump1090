@@ -11,10 +11,6 @@ Nice=-5
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=yes
-PermissionsStartOnly=true
-ExecStartPre=-/bin/mkdir $JSON_DIR
-ExecStartPre=/bin/chmod 0755 $JSON_DIR
-ExecStartPre=/bin/chown dump1090 $JSON_DIR
 
 ExecStart=/usr/bin/dump1090-mutability \
 	--net \
